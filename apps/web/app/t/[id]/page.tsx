@@ -62,10 +62,10 @@ export default function TournamentPage() {
             border: "1px solid #ddd",
             borderRadius: 10,
             textDecoration: "none",
-            background: "white",
+            background: "lightgray",
           }}
         >
-          ← Back to tournaments
+          ← Back to tournament list
         </Link>
       </div>
 
@@ -81,7 +81,7 @@ export default function TournamentPage() {
             padding: "10px 14px",
             border: "1px solid #ddd",
             borderRadius: 10,
-            background: isGenerating ? "#f5f5f5" : "white",
+            background: isGenerating ? "#78f3e0ff" : "#c0ddf0ff",
             cursor: isGenerating ? "not-allowed" : "pointer",
           }}
         >
@@ -95,7 +95,7 @@ export default function TournamentPage() {
             padding: "10px 14px",
             border: "1px solid #ddd",
             borderRadius: 10,
-            background: "white",
+            background: "#68b1e2ff",
           }}
         >
           View Latest Schedule

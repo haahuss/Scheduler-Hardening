@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 
+
 function isoFromLocalDatetime(localValue: string): string {
   // localValue is like "2025-12-30T18:00"
   // new Date(localValue) interprets it in local timezone and converts to ISO UTC.
@@ -21,16 +22,10 @@ export default function NewTournamentPage() {
   const [venuesText, setVenuesText] = useState("Main Gym\nAux Gym");
 
   // Simple “time window builder”: user provides start, end; we store a list
-  const [twStart, setTwStart] = useState("2025-12-31T10:00");
-  const [twEnd, setTwEnd] = useState("2025-12-31T11:00");
   const [timeWindows, setTimeWindows] = useState<
-    { start_local: string; end_local: string }[]
-  >([
-    { start_local: "2025-12-31T10:00", end_local: "2025-12-31T11:00" },
-    { start_local: "2025-12-31T11:00", end_local: "2025-12-31T12:00" },
-    { start_local: "2025-12-31T12:00", end_local: "2025-12-31T13:00" },
-    { start_local: "2025-12-31T13:00", end_local: "2025-12-31T14:00" },
-  ]);
+    { start_ts: string; end_ts: string }[]
+  >([]);
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,10 +50,6 @@ export default function NewTournamentPage() {
     [venuesText]
   );
 
-  async function onAddTimeWindow() {
-    setTimeWindows((prev) => [...prev, { start_local: twStart, end_local: twEnd }]);
-  }
-
   async function onCreate() {
     setErrorMsg(null);
 
@@ -67,6 +58,24 @@ export default function NewTournamentPage() {
     if (venues.length < 1) return setErrorMsg("Add at least 1 venue.");
     if (timeWindows.length < 1) return setErrorMsg("Add at least 1 time window.");
 
+    // validation goes RIGHT HERE
+    const now = new Date();
+
+    for (const tw of timeWindows) {
+      const s = new Date(tw.start_ts);
+      const e = new Date(tw.end_ts);
+
+      if (isNaN(s.getTime()) || isNaN(e.getTime())) {
+        return setErrorMsg("Time windows must have valid start/end values.");
+      }
+      if (s < now) {
+        return setErrorMsg("Time windows cannot start in the past.");
+      }
+      if (e <= s) {
+        return setErrorMsg("Time window end must be after start.");
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -74,9 +83,9 @@ export default function NewTournamentPage() {
         teams,
         venues,
         time_windows: timeWindows.map((tw) => ({
-          start_ts: isoFromLocalDatetime(tw.start_local),
-          end_ts: isoFromLocalDatetime(tw.end_local),
-          venue_id: null, // Phase 0: not pinning windows to venues yet
+          start_ts: isoFromLocalDatetime(tw.start_ts),
+          end_ts: isoFromLocalDatetime(tw.end_ts),
+          venue_id: null,
         })),
       };
 
@@ -88,6 +97,28 @@ export default function NewTournamentPage() {
       setIsSubmitting(false);
     }
   }
+
+
+  function toLocalInput(d: Date) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function addTimeWindow() {
+    const now = new Date();
+    const start = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
+    const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 hour
+
+    setTimeWindows((prev) => [
+      ...prev,
+      { start_ts: toLocalInput(start), end_ts: toLocalInput(end) },
+    ]);
+  }
+
+  function removeTimeWindow(idx: number) {
+    setTimeWindows((prev) => prev.filter((_, i) => i !== idx));
+  }
+
 
   return (
     <main style={{ maxWidth: 980, margin: "40px auto", padding: 16 }}>
@@ -102,7 +133,7 @@ export default function NewTournamentPage() {
             border: "1px solid #ddd",
             borderRadius: 10,
             textDecoration: "none",
-            background: "white",
+            background: "LightGray",
           }}
         >
           Go back to Home
@@ -142,63 +173,90 @@ export default function NewTournamentPage() {
           </label>
         </div>
 
-        <section style={{ marginTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700 }}>Time windows</h2>
-            <span style={{ fontSize: 13, opacity: 0.8 }}>
-              (Phase 0: global windows, not venue-specific)
-            </span>
+        <section style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 800 }}>Time windows</div>
+          <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+            Add one or more windows. These define when games can be scheduled.
           </div>
 
-          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 600 }}>Start</span>
-              <input
-                type="datetime-local"
-                value={twStart}
-                onChange={(e) => setTwStart(e.target.value)}
-                style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
-              />
-            </label>
+          <button
+            type="button"
+            onClick={addTimeWindow}
+            style={{
+              marginTop: 10,
+              padding: "8px 12px",
+              border: "1px solid #ddd",
+              borderRadius: 10,
+              background: "lightblue",
+            }}
+          >
+            + Add time window
+          </button>
 
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 600 }}>End</span>
-              <input
-                type="datetime-local"
-                value={twEnd}
-                onChange={(e) => setTwEnd(e.target.value)}
-                style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
-              />
-            </label>
+          {timeWindows.length === 0 && (
+            <div style={{ marginTop: 10, fontSize: 13, opacity: 0.75 }}>
+              No time windows yet.
+            </div>
+          )}
 
-            <button
-              type="button"
-              onClick={onAddTimeWindow}
+          {timeWindows.map((tw, idx) => (
+            <div
+              key={idx}
               style={{
-                alignSelf: "end",
-                padding: "10px 14px",
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
+                display: "flex",
+                gap: 10,
+                marginTop: 12,
+                alignItems: "end",
+                padding: 10,
+                border: "1px solid #eee",
+                borderRadius: 12,
               }}
             >
-              + Add time window
-            </button>
-          </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>Start</div>
+                <input
+                  type="datetime-local"
+                  value={tw.start_ts}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTimeWindows((prev) =>
+                      prev.map((x, i) => (i === idx ? { ...x, start_ts: v } : x))
+                    );
+                  }}
+                />
+              </div>
 
-          <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 12 }}>
-            <div style={{ padding: 12, fontSize: 13, opacity: 0.8 }}>
-              Current windows ({timeWindows.length})
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>End</div>
+                <input
+                  type="datetime-local"
+                  value={tw.end_ts}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTimeWindows((prev) =>
+                      prev.map((x, i) => (i === idx ? { ...x, end_ts: v } : x))
+                    );
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => removeTimeWindow(idx)}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 10,
+                  background: "#d50000ff",
+                  color: "white"
+                }}
+              >
+                Remove
+              </button>
             </div>
-            <ul style={{ margin: 0, padding: "0 12px 12px 28px" }}>
-              {timeWindows.map((tw, idx) => (
-                <li key={idx} style={{ padding: "4px 0" }}>
-                  {tw.start_local} → {tw.end_local}
-                </li>
-              ))}
-            </ul>
-          </div>
+          ))}
         </section>
+
 
         {errorMsg && (
           <div
@@ -222,7 +280,7 @@ export default function NewTournamentPage() {
               padding: "10px 14px",
               border: "1px solid #ddd",
               borderRadius: 10,
-              background: isSubmitting ? "#f5f5f5" : "white",
+              background: isSubmitting ? "#6fc140ff" : "lightgreen",
               cursor: isSubmitting ? "not-allowed" : "pointer",
             }}
           >

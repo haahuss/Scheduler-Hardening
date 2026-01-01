@@ -50,6 +50,7 @@ export default function HomePage() {
             border: "1px solid #ddd",
             borderRadius: 10,
             textDecoration: "none",
+            background: "lightgreen"
           }}
         >
           + Create Tournament
@@ -61,7 +62,7 @@ export default function HomePage() {
             padding: "10px 14px",
             border: "1px solid #ddd",
             borderRadius: 10,
-            background: "white",
+            background: "lightyellow",
           }}
         >
           Refresh
@@ -137,6 +138,7 @@ export default function HomePage() {
                           border: "1px solid #ddd",
                           borderRadius: 10,
                           textDecoration: "none",
+                          background: "#c4eef7aa"
                         }}
                       >
                         Open

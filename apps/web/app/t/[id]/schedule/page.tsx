@@ -149,7 +149,7 @@ export default function SchedulePage() {
             padding: "8px 12px",
             border: "1px solid #ddd",
             borderRadius: 10,
-            background: "white",
+            background: "lightgray",
           }}
         >
           ← Back
@@ -161,7 +161,7 @@ export default function SchedulePage() {
             padding: "8px 12px",
             border: "1px solid #ddd",
             borderRadius: 10,
-            background: "white",
+            background: "#fff8b6ff",
           }}
         >
           Refresh
@@ -408,6 +408,42 @@ export default function SchedulePage() {
               </div>
             </div>
           )}
+
+          {run.status !== "SUCCESS" && games.length > 0 && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 12,
+                border: "1px solid #f3c2c2",
+                background: "#fff7f7",
+                borderRadius: 12,
+              }}
+            >
+              <b>Draft schedule</b>: This schedule violates constraints. See “Schedule Health” and “Why it failed” for details.
+            </div>
+          )}
+
+          {run.status !== "SUCCESS" && run.error_json?.guidance?.length > 0 && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                border: "1px solid #f1e3b2",
+                background: "#fffdf3",
+                borderRadius: 12,
+              }}
+            >
+              <div style={{ fontWeight: 800 }}>How to make this schedulable</div>
+              <ul style={{ margin: 0, paddingLeft: 18, marginTop: 6 }}>
+                {run.error_json.guidance.map((g: string, i: number) => (
+                  <li key={i} style={{ marginTop: 4 }}>
+                    {g}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
 
 
           <section style={{ marginTop: 18 }}>
