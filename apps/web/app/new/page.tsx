@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { createTournament } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+
 
 function isoFromLocalDatetime(localValue: string): string {
   // localValue is like "2025-12-30T18:00"
@@ -89,7 +91,24 @@ export default function NewTournamentPage() {
 
   return (
     <main style={{ maxWidth: 980, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Create Tournament</h1>
+      {/* <h1 style={{ fontSize: 28, fontWeight: 700 }}>Create Tournament</h1> */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>Create Tournament</h1>
+        <Link
+          href="/"
+          style={{
+            marginLeft: "auto",
+            padding: "8px 12px",
+            border: "1px solid #ddd",
+            borderRadius: 10,
+            textDecoration: "none",
+            background: "white",
+          }}
+        >
+          Go back to Home
+        </Link>
+      </div>
+
 
       <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
         <label style={{ display: "grid", gap: 6 }}>

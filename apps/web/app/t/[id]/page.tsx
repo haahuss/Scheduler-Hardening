@@ -1,20 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { generateSchedule } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { generateSchedule, getTournament } from "@/lib/api";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 
 export default function TournamentPage() {
   const router = useRouter();
   const params = useParams();
 
-  // In App Router, useParams() returns Record<string, string | string[]>
   const tournamentIdRaw = params?.id;
   const tournamentId =
     typeof tournamentIdRaw === "string" ? tournamentIdRaw : tournamentIdRaw?.[0];
 
+  const [tournamentName, setTournamentName] = useState<string>("Tournament");
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      if (!tournamentId) return;
+      try {
+        const t = await getTournament(tournamentId);
+        setTournamentName(t.name);
+      } catch {
+        // If it fails, we keep a fallback title; not fatal.
+      }
+    }
+    load();
+  }, [tournamentId]);
 
   async function onGenerate() {
     setErrorMsg(null);
@@ -37,7 +51,23 @@ export default function TournamentPage() {
 
   return (
     <main style={{ maxWidth: 900, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Tournament</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{tournamentName}</h1>
+
+        <Link
+          href="/"
+          style={{
+            marginLeft: "auto",
+            padding: "8px 12px",
+            border: "1px solid #ddd",
+            borderRadius: 10,
+            textDecoration: "none",
+            background: "white",
+          }}
+        >
+          ← Back to tournaments
+        </Link>
+      </div>
 
       <p style={{ marginTop: 6, opacity: 0.8 }}>
         ID: <code>{tournamentId || "…"}</code>

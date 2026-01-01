@@ -12,13 +12,26 @@ services:
       - "5432:5432"
     volumes:
       - scheduler_pgdata:/var/lib/postgresql/data
-      # Mount your schema.sql into the container so we can apply it with psql
-      - ./supabase:/schema:ro
+      - ./supabase/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scheduler -d scheduler"]
       interval: 5s
       timeout: 3s
       retries: 20
+
+  migrate:
+    image: postgres:16
+    container_name: scheduler_migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: scheduler
+    volumes:
+      - ./supabase/schema.sql:/migrations/schema.sql:ro
+    command: >
+      bash -lc "psql -h postgres -U scheduler -d scheduler -f /migrations/schema.sql"
 
 volumes:
   scheduler_pgdata:
