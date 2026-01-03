@@ -1,8 +1,15 @@
+COMPOSE = docker compose -f infra/docker-compose.yml
+
+.PHONY: up down logs clean
+
 up:
-	docker compose -f infra/docker-compose.yml up -d
+	$(COMPOSE) up -d --build
 
 down:
-	docker compose -f infra/docker-compose.yml down
+	$(COMPOSE) down
 
-reset-db:
-	docker compose -f infra/docker-compose.yml down -v
+logs:
+	$(COMPOSE) logs -f --tail=200
+
+clean:
+	$(COMPOSE) down -v

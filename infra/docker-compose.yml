@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
@@ -12,8 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - scheduler_pgdata:/var/lib/postgresql/data
-      - ./supabase/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
-
+      - ./supabase:/schema:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scheduler -d scheduler"]
       interval: 5s
@@ -22,16 +19,55 @@ services:
 
   migrate:
     image: postgres:16
-    container_name: scheduler_migrate
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./supabase:/schema:ro
     environment:
       PGPASSWORD: scheduler
-    volumes:
-      - ./supabase/schema.sql:/migrations/schema.sql:ro
-    command: >
-      bash -lc "psql -h postgres -U scheduler -d scheduler -f /migrations/schema.sql"
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+          set -euo pipefail
+          echo "=== MIGRATE START ==="
+          echo "Listing /schema:"
+          ls -lah /schema
+          echo "Waiting for Postgres..."
+          until pg_isready -h postgres -U scheduler -d scheduler; do sleep 1; done
+          echo "Applying schema..."
+          psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema/schema.sql
+          echo "=== MIGRATE DONE ==="
+
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: scheduler_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@postgres:5432/scheduler
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: scheduler_web
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
 
 volumes:
   scheduler_pgdata:

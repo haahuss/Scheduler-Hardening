@@ -17,7 +17,7 @@ function isoFromLocalDatetime(localValue: string): string {
 export default function NewTournamentPage() {
   const router = useRouter();
 
-  const [name, setName] = useState("San Jose Winter Invite");
+  const [name, setName] = useState("College Winter Invite");
   const [teamsText, setTeamsText] = useState("Lions\nTigers\nBears\nHawks");
   const [venuesText, setVenuesText] = useState("Main Gym\nAux Gym");
 

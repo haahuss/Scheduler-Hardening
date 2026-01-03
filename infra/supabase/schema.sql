@@ -1,86 +1,83 @@
 -- =========================
--- Scheduler-Hardening schema (Phase 0)
+-- Scheduler-Hardening schema (MVP)
 -- =========================
 
 -- Needed for gen_random_uuid()
-create extension if not exists pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- -------------------------
 -- tournaments
 -- -------------------------
-create table if not exists tournaments (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz not null default now()
+CREATE TABLE IF NOT EXISTS tournaments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- -------------------------
 -- teams
 -- -------------------------
-create table if not exists teams (
-  id uuid primary key default gen_random_uuid(),
-  tournament_id uuid not null references tournaments(id) on delete cascade,
-  name text not null,
-  created_at timestamptz not null default now(),
-  unique (tournament_id, name)
+CREATE TABLE IF NOT EXISTS teams (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tournament_id, name)
 );
-
-create index if not exists idx_teams_tournament_id on teams(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_teams_tournament_id ON teams(tournament_id);
 
 -- -------------------------
 -- venues
 -- -------------------------
-create table if not exists venues (
-  id uuid primary key default gen_random_uuid(),
-  tournament_id uuid not null references tournaments(id) on delete cascade,
-  name text not null,
-  created_at timestamptz not null default now(),
-  unique (tournament_id, name)
+CREATE TABLE IF NOT EXISTS venues (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tournament_id, name)
 );
-
-create index if not exists idx_venues_tournament_id on venues(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_venues_tournament_id ON venues(tournament_id);
 
 -- -------------------------
 -- time_windows
 -- A tournament’s available slots (optionally pinned to a venue)
 -- -------------------------
-create table if not exists time_windows (
-  id uuid primary key default gen_random_uuid(),
-  tournament_id uuid not null references tournaments(id) on delete cascade,
-  start_ts timestamptz not null,
-  end_ts timestamptz not null,
-  venue_id uuid null references venues(id) on delete set null,
-  created_at timestamptz not null default now(),
-  check (end_ts > start_ts)
+CREATE TABLE IF NOT EXISTS time_windows (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  start_ts timestamptz NOT NULL,
+  end_ts timestamptz NOT NULL,
+  venue_id uuid NULL REFERENCES venues(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_ts > start_ts)
 );
-
-create index if not exists idx_time_windows_tournament_id on time_windows(tournament_id);
-create index if not exists idx_time_windows_start_ts on time_windows(start_ts);
+CREATE INDEX IF NOT EXISTS idx_time_windows_tournament_id ON time_windows(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_time_windows_start_ts ON time_windows(start_ts);
 
 -- -------------------------
 -- schedule_runs
 -- Immutable “runs” (each generate = new row)
 -- -------------------------
-create table if not exists schedule_runs (
-  id uuid primary key default gen_random_uuid(),
-  tournament_id uuid not null references tournaments(id) on delete cascade,
-  created_at timestamptz not null default now(),
+CREATE TABLE IF NOT EXISTS schedule_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
 
-  -- QUEUED | RUNNING | COMPLETE | FAILED
-  status text not null,
+  -- SUCCESS | FAILED
+  status text NOT NULL,
 
-  -- Hash of the scheduling input so we can compare runs later
-  input_hash text not null,
+  -- Hash of inputs (teams/venues/windows) for regression + reproducibility
+  input_hash text NOT NULL,
 
-  -- The produced schedule (JSON)
-  schedule_json jsonb null,
+  -- Generated schedule
+  schedule_json jsonb NULL,
 
-  -- Metrics and quality indicators (JSON)
-  metrics_json jsonb null,
+  -- Metrics: integrity/fairness/etc.
+  metrics_json jsonb NULL,
 
-  -- Error details if failed (JSON)
-  error_json jsonb null
+  -- Failure guidance (capacity/constraints), if any
+  error_json jsonb NULL
 );
 
-create index if not exists idx_schedule_runs_tournament_id on schedule_runs(tournament_id);
-create index if not exists idx_schedule_runs_created_at on schedule_runs(created_at);
+CREATE INDEX IF NOT EXISTS idx_schedule_runs_tournament_id ON schedule_runs(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_runs_created_at ON schedule_runs(created_at);
