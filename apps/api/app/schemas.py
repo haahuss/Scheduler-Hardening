@@ -47,6 +47,7 @@ class ScheduleRunOut(BaseModel):
     metrics_json: Optional[Dict[str, Any]] = None
     error_json: Optional[Dict[str, Any]] = None
 
+
 class TournamentListItem(BaseModel):
     id: UUID
     name: str
