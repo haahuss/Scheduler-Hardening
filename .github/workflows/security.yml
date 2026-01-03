@@ -17,7 +17,7 @@ jobs:
     name: Secrets scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -29,7 +29,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
@@ -42,7 +42,7 @@ jobs:
       matrix:
         language: [ "python", "javascript-typescript" ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
@@ -53,7 +53,7 @@ jobs:
     name: Deps audit (pip-audit + npm audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Python deps audit (pip-audit)
         working-directory: apps/api
@@ -79,7 +79,7 @@ jobs:
     name: Container scan (Trivy) — fail on HIGH/CRITICAL
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build API image
         run: |
