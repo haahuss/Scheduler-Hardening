@@ -8,19 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_db
 from .models import Tournament, Team, Venue, TimeWindow, ScheduleRun
-from .schemas import TournamentCreateIn, TournamentOut, GenerateOut, ScheduleRunOut
-
 from .schemas import TournamentCreateIn, TournamentOut, GenerateOut, ScheduleRunOut, TournamentListItem
-
-from datetime import datetime
-from typing import Any, Dict, List
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from datetime import datetime, timezone
 
 
 
