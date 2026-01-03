@@ -12,7 +12,7 @@ from .schemas import TournamentCreateIn, TournamentOut, GenerateOut, ScheduleRun
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 

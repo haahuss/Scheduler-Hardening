@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createTournament } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+import { createTournament, getErrorMessage } from "@/lib/api";
 
 
 
@@ -91,8 +92,9 @@ export default function NewTournamentPage() {
 
       const created = await createTournament(payload);
       router.push(`/t/${created.id}`);
-    } catch (e: any) {
-      setErrorMsg(e?.message || "Failed to create tournament.");
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e);
+      setErrorMsg(msg || "Failed to create tournament.");
     } finally {
       setIsSubmitting(false);
     }

@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getLatestRun, getTournament } from "@/lib/api";
 import { useRouter, useParams } from "next/navigation";
+
+import type { Game, IntegrityViolation, ScheduleRun, TopOffender } from "@/lib/api";
+import { getLatestRun, getErrorMessage, getTournament } from "@/lib/api";
+
+
+type ViolationGroup = IntegrityViolation & {
+  entityKey: string;
+  count: number;
+  games_map: Map<number, Game>;
+  games: Game[];
+  unique_games_count: number;
+  [key: string]: unknown;
+};
+
+
 
 export default function SchedulePage() {
   const router = useRouter();
@@ -13,7 +27,7 @@ export default function SchedulePage() {
     typeof tournamentIdRaw === "string" ? tournamentIdRaw : tournamentIdRaw?.[0];
 
   const [loading, setLoading] = useState(true);
-  const [run, setRun] = useState<any>(null);
+  const [run, setRun] = useState<ScheduleRun | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState<string>("Tournament");
 
@@ -31,9 +45,10 @@ export default function SchedulePage() {
     try {
       const r = await getLatestRun(tournamentId);
       setRun(r);
-    } catch (e: any) {
-      setErrorMsg(e?.message || "Failed to load schedule.");
-    } finally {
+    } catch (e: unknown) {
+      setErrorMsg(getErrorMessage(e) || "Failed to load schedule.");
+    }
+    finally {
       setLoading(false);
     }
   }
@@ -57,19 +72,23 @@ export default function SchedulePage() {
 }, [tournamentId]);
 
 
-  const games = useMemo(() => run?.schedule_json?.games || [], [run]);
+  const games = useMemo<Game[]>(() => run?.schedule_json?.games ?? [], [run]);
 
-  const groupedViolations = useMemo(() => {
-    const vs = run?.metrics_json?.integrity?.violations || [];
-    const map = new Map<string, any>();
+  const groupedViolations = useMemo<ViolationGroup[]>(() => {
+    const vs = run?.metrics_json?.integrity?.violations ?? [];
+    const map = new Map<string, ViolationGroup>();
 
     for (const v of vs) {
-      const entityKey = v.team_id ? `team:${v.team_id}` : v.venue_id ? `venue:${v.venue_id}` : "none";
+      const entityKey = v.team_id
+        ? `team:${v.team_id}`
+        : v.venue_id
+          ? `venue:${v.venue_id}`
+          : "none";
+
       const key = `${v.type}|${entityKey}`;
 
       if (!map.has(key)) {
-        // games_map will dedupe by game_no
-        const gamesMap = new Map<number, any>();
+        const gamesMap = new Map<number, Game>();
 
         if (Array.isArray(v.games)) {
           for (const g of v.games) {
@@ -79,41 +98,41 @@ export default function SchedulePage() {
 
         map.set(key, {
           ...v,
-          count: 1,          // number of pairwise conflicts grouped
-          games_map: gamesMap,
+          entityKey,
+          count: 1,
+          games_map: gamesMap,   // ✅ store the deduped map you built
+          games: [],
+          unique_games_count: 0,
         });
       } else {
-        const existing = map.get(key);
+        const existing = map.get(key)!;
         existing.count += 1;
 
         if (Array.isArray(v.games)) {
           for (const g of v.games) {
-            if (typeof g?.game_no === "number") {
-              existing.games_map.set(g.game_no, g);
-            }
+            if (typeof g?.game_no === "number") existing.games_map.set(g.game_no, g);
           }
         }
       }
     }
 
-    // Convert games_map -> games (deduped + sorted)
-    const grouped = Array.from(map.values()).map((v) => {
-      const uniqueGames = Array.from(v.games_map.values()).sort(
-        (a: any, b: any) => (a.game_no ?? 0) - (b.game_no ?? 0)
+    return Array.from(map.values()).map((grp) => {
+      const uniqueGames = Array.from(grp.games_map.values()).sort(
+        (a, b) => (a.game_no ?? 0) - (b.game_no ?? 0)
       );
 
       return {
-        ...v,
+        ...grp,
         games: uniqueGames,
         unique_games_count: uniqueGames.length,
       };
     });
-
-    return grouped;
   }, [run]);
 
-  function groupGamesByTimeslot(games: any[]) {
-    const map = new Map<string, any[]>();
+
+
+  function groupGamesByTimeslot(games: Game[]) {
+    const map = new Map<string, Game[]>();
 
     for (const g of games || []) {
       const key = `${g.start_ts}|${g.end_ts}`;
@@ -133,7 +152,7 @@ export default function SchedulePage() {
     return groups;
   }
 
-
+  const guidance = run?.error_json?.guidance ?? [];
 
 
   return (
@@ -213,7 +232,7 @@ export default function SchedulePage() {
               </div>
               <div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>Created</div>
-                <div>{new Date(run.created_at).toLocaleString()}</div>
+                <div>{run.created_at ? new Date(run.created_at).toLocaleString() : "—"}</div>
               </div>
             </div>
 
@@ -297,7 +316,7 @@ export default function SchedulePage() {
                       <div style={{ marginTop: 6 }}>
                         <div style={{ fontWeight: 700 }}>Top offenders</div>
                         <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {run.metrics_json.fairness.top_offenders.slice(0, 3).map((o: any, i: number) => (
+                          {(run?.metrics_json?.fairness?.top_offenders ?? []).slice(0, 3).map((o: TopOffender, i: number) => (
                             <li key={i}>
                               {o.team_name}: {o.count}
                             </li>
@@ -318,7 +337,7 @@ export default function SchedulePage() {
           </div>
           
 
-          {run.metrics_json?.integrity?.violations?.length > 0 && (
+          {(run.metrics_json?.integrity?.violations?.length ?? 0) > 0 && (
             <div style={{ marginTop: 12 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700 }}>Why it failed (Top 5 Issues)</h3>
               <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
@@ -326,7 +345,7 @@ export default function SchedulePage() {
               </div>
 
               <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
-                {groupedViolations.slice(0, 5).map((v: any, idx: number) => (
+                {groupedViolations.slice(0, 5).map((v: ViolationGroup, idx: number) => (
                   <div
                     key={idx}
                     style={{
@@ -385,7 +404,7 @@ export default function SchedulePage() {
                             </div>
 
                             <ul style={{ margin: 0, paddingLeft: 18 }}>
-                              {grp.games.map((g: any, i: number) => (
+                              {grp.games.map((g: Game, i: number) => (
                                 <li key={i} style={{ marginBottom: 4 }}>
                                   <b>Game #{g.game_no}</b>
                                   {g.vs ? ` — vs ${g.vs}` : ""}
@@ -423,7 +442,7 @@ export default function SchedulePage() {
             </div>
           )}
 
-          {run.status !== "SUCCESS" && run.error_json?.guidance?.length > 0 && (
+          {run.status !== "SUCCESS" && (run.error_json?.guidance?.length ?? 0) > 0 && (
             <div
               style={{
                 marginTop: 12,
@@ -435,7 +454,7 @@ export default function SchedulePage() {
             >
               <div style={{ fontWeight: 800 }}>How to make this schedulable</div>
               <ul style={{ margin: 0, paddingLeft: 18, marginTop: 6 }}>
-                {run.error_json.guidance.map((g: string, i: number) => (
+                {guidance.map((g: string, i: number) => (
                   <li key={i} style={{ marginTop: 4 }}>
                     {g}
                   </li>
@@ -471,7 +490,7 @@ export default function SchedulePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {games.map((g: any) => (
+                  {games.map((g: Game) => (
                     <tr key={g.game_no}>
                       <td style={{ padding: 10, borderBottom: "1px solid #f1f1f1" }}>{g.game_no}</td>
                       <td style={{ padding: 10, borderBottom: "1px solid #f1f1f1", fontFamily: "monospace" }}>

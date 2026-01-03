@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { generateSchedule, getTournament } from "@/lib/api";
+import { generateSchedule, getErrorMessage, getTournament } from "@/lib/api";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+
 
 export default function TournamentPage() {
   const router = useRouter();
@@ -42,8 +43,9 @@ export default function TournamentPage() {
     try {
       await generateSchedule(tournamentId);
       router.push(`/t/${tournamentId}/schedule`);
-    } catch (e: any) {
-      setErrorMsg(e?.message || "Failed to generate schedule.");
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e);
+      setErrorMsg(msg || "Failed to generate schedule.");
     } finally {
       setIsGenerating(false);
     }

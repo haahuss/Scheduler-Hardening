@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { listTournaments } from "@/lib/api";
+import { listTournaments, getErrorMessage, TournamentListItem } from "@/lib/api";
+
+
+
+
 
 export default function HomePage() {
-  const [items, setItems] = useState<
-    { id: string; name: string; created_at: string }[]
-  >([]);
+  const [items, setItems] = useState<TournamentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -17,8 +19,9 @@ export default function HomePage() {
     try {
       const data = await listTournaments();
       setItems(data);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load tournaments");
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e);
+      setErr(msg || "Failed to load tournaments");
     } finally {
       setLoading(false);
     }
@@ -127,7 +130,7 @@ export default function HomePage() {
                       </div>
                     </td>
                     <td style={{ padding: 10, borderBottom: "1px solid #f1f1f1" }}>
-                      {new Date(t.created_at).toLocaleString()}
+                      {t.created_at ? new Date(t.created_at).toLocaleString() : "—"}
                     </td>
                     <td style={{ padding: 10, borderBottom: "1px solid #f1f1f1" }}>
                       <Link
