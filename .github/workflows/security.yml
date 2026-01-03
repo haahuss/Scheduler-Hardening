@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # standard for this action :contentReference[oaicite:1]{index=1}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   dependency_review:
     name: Dependency Review (PR only)
@@ -34,33 +34,20 @@ jobs:
         with:
           fail-on-severity: high
 
-  codeql_python:
-    name: SAST (CodeQL) — Python
+  codeql:
+    name: SAST (CodeQL)
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('apps/api/**') != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ "python", "javascript-typescript" ]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
         with:
-          languages: python
-          source-root: apps/api
+          languages: ${{ matrix.language }}
+      # For Python + JS/TS, autobuild is usually unnecessary; skipping avoids monorepo build issues.
       - uses: github/codeql-action/analyze@v3
-        with:
-          upload: false  # avoids failures on private repos without GHAS :contentReference[oaicite:2]{index=2}
-
-  codeql_js:
-    name: SAST (CodeQL) — JS/TS
-    runs-on: ubuntu-latest
-    if: ${{ hashFiles('apps/web/**') != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          source-root: apps/web
-      - uses: github/codeql-action/analyze@v3
-        with:
-          upload: false  # flip to true after enabling GH Code Security :contentReference[oaicite:3]{index=3}
 
   deps_audit:
     name: Deps audit (pip-audit + npm audit)
@@ -69,28 +56,39 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Python deps audit (pip-audit)
-        if: ${{ hashFiles('apps/api/requirements.txt') != '' }}
         working-directory: apps/api
         run: |
-          python -m pip install -U pip pip-audit
-          pip-audit -r requirements.txt
+          if [ -f requirements.txt ]; then
+            python -m pip install -U pip pip-audit
+            pip-audit -r requirements.txt
+          else
+            echo "apps/api/requirements.txt not found — skipping pip-audit"
+          fi
 
       - name: Node deps audit (npm audit)
-        if: ${{ hashFiles('apps/web/package.json') != '' }}
         working-directory: apps/web
         run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npm audit --audit-level=high
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm audit --audit-level=high
+          else
+            echo "apps/web/package.json not found — skipping npm audit"
+          fi
 
   container_scan:
     name: Container scan (Trivy) — fail on HIGH/CRITICAL
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('apps/api/Dockerfile') != '' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Build API image
-        run: docker build -t scheduler-api:ci -f apps/api/Dockerfile apps/api
+        run: |
+          if [ -f apps/api/Dockerfile ]; then
+            docker build -t scheduler-api:ci -f apps/api/Dockerfile apps/api
+          else
+            echo "apps/api/Dockerfile not found — skipping container build"
+            exit 0
+          fi
 
       - name: Trivy scan API image
         uses: aquasecurity/trivy-action@0.24.0
