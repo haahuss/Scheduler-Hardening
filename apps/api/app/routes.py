@@ -719,12 +719,13 @@ async def create_tournament(
         )
     ).scalar_one_or_none()
 
-    val = (await db.execute(text("select current_setting('app.user_id', true)"))).scalar_one()
+    val = (
+        await db.execute(text("select current_setting('app.user_id', true)"))
+    ).scalar_one()
     print("DEBUG app.user_id =", repr(val))
 
     if not org_id:
         raise HTTPException(status_code=403, detail="User is not a member of any org.")
-
 
     # --- Create tournament ---
     t = Tournament(name=payload.name, org_id=org_id)
@@ -736,7 +737,6 @@ async def create_tournament(
 
     for venue in payload.venues:
         db.add(Venue(tournament_id=t.id, name=venue.name, org_id=org_id))
-
 
     # Need venue IDs if user wants to pin time windows to venues
     await db.flush()
@@ -755,8 +755,9 @@ async def create_tournament(
     await db.refresh(t)
     return TournamentOut(id=t.id, name=t.name, created_at=t.created_at)
 
+
 def _norm(s: str) -> str:
-        return " ".join(s.strip().lower().split())
+    return " ".join(s.strip().lower().split())
 
 
 @router.post("/tournaments/{tournament_id}/generate", response_model=GenerateOut)
@@ -791,7 +792,6 @@ async def generate_schedule(
         .all()
     )
 
-    
     # Reject duplicate team names (case/whitespace-insensitive)
     counts = Counter(teams)
     dupes = sorted({name for name, c in counts.items() if c > 1})
@@ -809,7 +809,6 @@ async def generate_schedule(
             status_code=400,
             detail=f"Duplicate venue name(s) not allowed: {', '.join(dupes)}",
         )
-
 
     if len(teams) < 2:
         raise HTTPException(
@@ -922,7 +921,6 @@ async def generate_schedule(
             {"tid": tournament_id},
         )
     ).scalar_one()
-
 
     run = ScheduleRun(
         tournament_id=tournament_id,

@@ -48,7 +48,6 @@ class Team(Base):
 class Venue(Base):
     __tablename__ = "venues"
 
-
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), nullable=False)
     tournament_id = Column(

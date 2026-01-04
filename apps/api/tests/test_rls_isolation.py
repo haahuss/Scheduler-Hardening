@@ -31,17 +31,34 @@ async def test_rls_blocks_cross_org_reads():
 
     async with Session() as db:
         # Defensive cleanup in case DB is dirty from previous runs
-        await db.execute(text("delete from org_members where user_id in (:a, :b)"), {"a": user_a, "b": user_b})
+        await db.execute(
+            text("delete from org_members where user_id in (:a, :b)"),
+            {"a": user_a, "b": user_b},
+        )
 
-        org_a = (await db.execute(text("insert into orgs(name) values(:n) returning id"), {"n": org_name_a})).scalar_one()
-        org_b = (await db.execute(text("insert into orgs(name) values(:n) returning id"), {"n": org_name_b})).scalar_one()
+        org_a = (
+            await db.execute(
+                text("insert into orgs(name) values(:n) returning id"),
+                {"n": org_name_a},
+            )
+        ).scalar_one()
+        org_b = (
+            await db.execute(
+                text("insert into orgs(name) values(:n) returning id"),
+                {"n": org_name_b},
+            )
+        ).scalar_one()
 
         await db.execute(
-            text("insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"),
+            text(
+                "insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"
+            ),
             {"o": org_a, "u": user_a},
         )
         await db.execute(
-            text("insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"),
+            text(
+                "insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"
+            ),
             {"o": org_b, "u": user_b},
         )
         await db.commit()
@@ -51,7 +68,9 @@ async def test_rls_blocks_cross_org_reads():
         await _set_user(db, user_a)
         t_a = (
             await db.execute(
-                text("insert into tournaments(name, org_id) values ('TA', :org) returning id"),
+                text(
+                    "insert into tournaments(name, org_id) values ('TA', :org) returning id"
+                ),
                 {"org": org_a},
             )
         ).scalar_one()
@@ -62,7 +81,9 @@ async def test_rls_blocks_cross_org_reads():
         await _set_user(db, user_b)
         t_b = (
             await db.execute(
-                text("insert into tournaments(name, org_id) values ('TB', :org) returning id"),
+                text(
+                    "insert into tournaments(name, org_id) values ('TB', :org) returning id"
+                ),
                 {"org": org_b},
             )
         ).scalar_one()
@@ -74,11 +95,15 @@ async def test_rls_blocks_cross_org_reads():
 
         # Count total visible rows among the two IDs
         rows = (
-            await db.execute(
-                text("select id from tournaments where id = any(:ids)"),
-                {"ids": [t_a, t_b]},
+            (
+                await db.execute(
+                    text("select id from tournaments where id = any(:ids)"),
+                    {"ids": [t_a, t_b]},
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         assert t_a in rows
         assert t_b not in rows
@@ -99,17 +124,34 @@ async def test_rls_blocks_cross_org_write():
     org_name_b = f"Org B2 {uuid.uuid4()}"
 
     async with Session() as db:
-        await db.execute(text("delete from org_members where user_id in (:a, :b)"), {"a": user_a, "b": user_b})
+        await db.execute(
+            text("delete from org_members where user_id in (:a, :b)"),
+            {"a": user_a, "b": user_b},
+        )
 
-        org_a = (await db.execute(text("insert into orgs(name) values(:n) returning id"), {"n": org_name_a})).scalar_one()
-        org_b = (await db.execute(text("insert into orgs(name) values(:n) returning id"), {"n": org_name_b})).scalar_one()
+        org_a = (
+            await db.execute(
+                text("insert into orgs(name) values(:n) returning id"),
+                {"n": org_name_a},
+            )
+        ).scalar_one()
+        org_b = (
+            await db.execute(
+                text("insert into orgs(name) values(:n) returning id"),
+                {"n": org_name_b},
+            )
+        ).scalar_one()
 
         await db.execute(
-            text("insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"),
+            text(
+                "insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"
+            ),
             {"o": org_a, "u": user_a},
         )
         await db.execute(
-            text("insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"),
+            text(
+                "insert into org_members(org_id, user_id, role) values (:o, :u, 'member')"
+            ),
             {"o": org_b, "u": user_b},
         )
         await db.commit()
@@ -120,7 +162,9 @@ async def test_rls_blocks_cross_org_write():
         # user_a attempts to write into org_b (should be blocked by RLS WITH CHECK)
         with pytest.raises(Exception):
             await db.execute(
-                text("insert into tournaments(name, org_id) values ('SHOULD_FAIL', :org)"),
+                text(
+                    "insert into tournaments(name, org_id) values ('SHOULD_FAIL', :org)"
+                ),
                 {"org": org_b},
             )
             await db.commit()
