@@ -3,10 +3,9 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from .db import get_db
+from collections import Counter
 from .models import Tournament, Team, Venue, TimeWindow, ScheduleRun
 from .schemas import (
     TournamentCreateIn,
@@ -20,6 +19,9 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+from .deps import get_db_rls
+from .rls import require_user_id
 
 
 router = APIRouter()
@@ -646,7 +648,7 @@ def _infeasible_explanation(
 
 
 @router.get("/tournaments", response_model=list[TournamentListItem])
-async def list_tournaments(db: AsyncSession = Depends(get_db)):
+async def list_tournaments(db: AsyncSession = Depends(get_db_rls)):
     rows = (
         (
             await db.execute(
@@ -656,27 +658,26 @@ async def list_tournaments(db: AsyncSession = Depends(get_db)):
         .scalars()
         .all()
     )
-
     return [
         TournamentListItem(id=t.id, name=t.name, created_at=t.created_at) for t in rows
     ]
 
 
 @router.get("/tournaments/{tournament_id}", response_model=TournamentOut)
-async def get_tournament(tournament_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_tournament(tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)):
     t = (
         await db.execute(select(Tournament).where(Tournament.id == tournament_id))
     ).scalar_one_or_none()
-
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
-
     return TournamentOut(id=t.id, name=t.name, created_at=t.created_at)
 
 
 @router.post("/tournaments", response_model=TournamentOut)
 async def create_tournament(
-    payload: TournamentCreateIn, db: AsyncSession = Depends(get_db)
+    payload: TournamentCreateIn,
+    user_id: UUID = Depends(require_user_id),
+    db: AsyncSession = Depends(get_db_rls),
 ):
     # --- Step 3D: backend validation for time windows ---
     if not payload.time_windows or len(payload.time_windows) < 1:
@@ -710,16 +711,32 @@ async def create_tournament(
                 detail=f"Time window #{i + 1} end_ts must be after start_ts.",
             )
 
+    # --- Resolve org_id from current user identity (set by get_db_rls / RLS identity) ---
+    org_id = (
+        await db.execute(
+            text("select org_id from org_members where user_id = :uid limit 1"),
+            {"uid": user_id},
+        )
+    ).scalar_one_or_none()
+
+    val = (await db.execute(text("select current_setting('app.user_id', true)"))).scalar_one()
+    print("DEBUG app.user_id =", repr(val))
+
+    if not org_id:
+        raise HTTPException(status_code=403, detail="User is not a member of any org.")
+
+
     # --- Create tournament ---
-    t = Tournament(name=payload.name)
+    t = Tournament(name=payload.name, org_id=org_id)
     db.add(t)
     await db.flush()  # get t.id
 
     for team in payload.teams:
-        db.add(Team(tournament_id=t.id, name=team.name))
+        db.add(Team(tournament_id=t.id, name=team.name, org_id=org_id))
 
     for venue in payload.venues:
-        db.add(Venue(tournament_id=t.id, name=venue.name))
+        db.add(Venue(tournament_id=t.id, name=venue.name, org_id=org_id))
+
 
     # Need venue IDs if user wants to pin time windows to venues
     await db.flush()
@@ -738,9 +755,14 @@ async def create_tournament(
     await db.refresh(t)
     return TournamentOut(id=t.id, name=t.name, created_at=t.created_at)
 
+def _norm(s: str) -> str:
+        return " ".join(s.strip().lower().split())
+
 
 @router.post("/tournaments/{tournament_id}/generate", response_model=GenerateOut)
-async def generate_schedule(tournament_id: UUID, db: AsyncSession = Depends(get_db)):
+async def generate_schedule(
+    tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)
+):
     t = (
         await db.execute(select(Tournament).where(Tournament.id == tournament_id))
     ).scalar_one_or_none()
@@ -768,6 +790,26 @@ async def generate_schedule(tournament_id: UUID, db: AsyncSession = Depends(get_
         .scalars()
         .all()
     )
+
+    
+    # Reject duplicate team names (case/whitespace-insensitive)
+    counts = Counter(teams)
+    dupes = sorted({name for name, c in counts.items() if c > 1})
+    if dupes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Duplicate team name(s) not allowed: {', '.join(dupes)}",
+        )
+
+    venue_names = [_norm(v.name) for v in venues if v.name and v.name.strip()]
+    counts = Counter(venue_names)
+    dupes = sorted({name for name, c in counts.items() if c > 1})
+    if dupes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Duplicate venue name(s) not allowed: {', '.join(dupes)}",
+        )
+
 
     if len(teams) < 2:
         raise HTTPException(
@@ -839,9 +881,16 @@ async def generate_schedule(tournament_id: UUID, db: AsyncSession = Depends(get_
         }
 
         if integrity_solved.get("status") == "PASS":
+            org_id = (
+                await db.execute(
+                    text("select org_id from tournaments where id = :tid"),
+                    {"tid": tournament_id},
+                )
+            ).scalar_one_or_none()
             run = ScheduleRun(
                 tournament_id=tournament_id,
                 status="SUCCESS",
+                org_id=org_id,
                 input_hash=input_hash,
                 schedule_json={"games": solved},
                 metrics_json=metrics_solved,
@@ -867,8 +916,17 @@ async def generate_schedule(tournament_id: UUID, db: AsyncSession = Depends(get_
         "fairness": fairness,
     }
 
+    org_id = (
+        await db.execute(
+            text("select org_id from tournaments where id = :tid"),
+            {"tid": tournament_id},
+        )
+    ).scalar_one()
+
+
     run = ScheduleRun(
         tournament_id=tournament_id,
+        org_id=org_id,
         status="FAILED",
         input_hash=input_hash,
         schedule_json={"games": draft},
@@ -883,7 +941,7 @@ async def generate_schedule(tournament_id: UUID, db: AsyncSession = Depends(get_
 
 
 @router.get("/tournaments/{tournament_id}/latest-run", response_model=ScheduleRunOut)
-async def latest_run(tournament_id: UUID, db: AsyncSession = Depends(get_db)):
+async def latest_run(tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)):
     # Latest run by created_at
     result = await db.execute(
         select(ScheduleRun)

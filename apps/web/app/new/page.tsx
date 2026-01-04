@@ -6,6 +6,21 @@ import Link from "next/link";
 
 import { createTournament, getErrorMessage } from "@/lib/api";
 
+function normName(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function findDuplicates(items: { name: string }[]) {
+  const seen = new Map<string, number>();
+  for (const it of items) {
+    const n = normName(it.name);
+    if (!n) continue;
+    seen.set(n, (seen.get(n) ?? 0) + 1);
+  }
+  return Array.from(seen.entries())
+    .filter(([, count]) => count > 1)
+    .map(([name]) => name);
+}
 
 
 function isoFromLocalDatetime(localValue: string): string {
@@ -75,7 +90,19 @@ export default function NewTournamentPage() {
       if (e <= s) {
         return setErrorMsg("Time window end must be after start.");
       }
+      
+      const dupTeams = findDuplicates(teams);
+      if (dupTeams.length > 0) {
+        return setErrorMsg(`Duplicate team name(s) not allowed: ${dupTeams.join(", ")}`);
+      }
+  
+      const dupVenues = findDuplicates(venues);
+      if (dupVenues.length > 0) {
+        return setErrorMsg(`Duplicate venue name(s) not allowed: ${dupVenues.join(", ")}`);
+      }
     }
+
+
 
     setIsSubmitting(true);
     try {

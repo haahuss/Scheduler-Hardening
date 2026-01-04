@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy app code
 COPY app /app/app
 
+COPY tests /app/tests
+
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 

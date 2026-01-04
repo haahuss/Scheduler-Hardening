@@ -2,6 +2,10 @@ import uuid
 from sqlalchemy import Column, DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column
+import uuid
 
 Base = declarative_base()
 
@@ -10,6 +14,7 @@ class Tournament(Base):
     __tablename__ = "tournaments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), nullable=False)
     name = Column(Text, nullable=False)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -30,6 +35,7 @@ class Team(Base):
     __tablename__ = "teams"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), nullable=False)
     tournament_id = Column(
         UUID(as_uuid=True),
         ForeignKey("tournaments.id", ondelete="CASCADE"),
@@ -46,7 +52,9 @@ class Team(Base):
 class Venue(Base):
     __tablename__ = "venues"
 
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), nullable=False)
     tournament_id = Column(
         UUID(as_uuid=True),
         ForeignKey("tournaments.id", ondelete="CASCADE"),
@@ -88,6 +96,8 @@ class ScheduleRun(Base):
     __tablename__ = "schedule_runs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), nullable=False)
+
     tournament_id = Column(
         UUID(as_uuid=True),
         ForeignKey("tournaments.id", ondelete="CASCADE"),

@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - scheduler_pgdata:/var/lib/postgresql/data
-      - ./supabase:/schema:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scheduler -d scheduler"]
       interval: 5s
@@ -24,6 +23,7 @@ services:
         condition: service_healthy
     volumes:
       - ./supabase:/schema:ro
+      - ./sql:/schema_extra:ro
     environment:
       PGPASSWORD: scheduler
     entrypoint:
@@ -38,6 +38,9 @@ services:
           until pg_isready -h postgres -U scheduler -d scheduler; do sleep 1; done
           echo "Applying schema..."
           psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema/schema.sql
+          psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/00_orgs_schema.sql
+          psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/01_enable_rls.sql
+          psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/02_app_role.sql
           echo "=== MIGRATE DONE ==="
 
 
@@ -52,7 +55,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@postgres:5432/scheduler
+      DATABASE_URL: postgresql+asyncpg://app_user:app_user@postgres:5432/scheduler
       CORS_ORIGINS: http://localhost:3000
     ports:
       - "8000:8000"

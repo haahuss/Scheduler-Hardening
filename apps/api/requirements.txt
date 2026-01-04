@@ -9,3 +9,6 @@ asyncpg>=0.28,<0.31
 
 python-dotenv>=1.0,<2
 orjson>=3.9,<4
+
+pytest
+pytest-asyncio
