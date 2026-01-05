@@ -1,0 +1,68 @@
+{
+  "games": [
+    {
+      "away_team_id": "team-1",
+      "end_ts": "2027-01-05T22:00:00+00:00",
+      "game_no": 1,
+      "home_team_id": "team-0",
+      "start_ts": "2027-01-05T18:00:00+00:00",
+      "venue_id": "venue-0"
+    },
+    {
+      "away_team_id": "team-2",
+      "end_ts": "2027-01-06T22:00:00+00:00",
+      "game_no": 2,
+      "home_team_id": "team-0",
+      "start_ts": "2027-01-06T18:00:00+00:00",
+      "venue_id": "venue-1"
+    },
+    {
+      "away_team_id": "team-3",
+      "end_ts": "2027-01-05T22:00:00+00:00",
+      "game_no": 3,
+      "home_team_id": "team-0",
+      "start_ts": "2027-01-05T18:00:00+00:00",
+      "venue_id": "venue-0"
+    },
+    {
+      "away_team_id": "team-2",
+      "end_ts": "2027-01-06T22:00:00+00:00",
+      "game_no": 4,
+      "home_team_id": "team-1",
+      "start_ts": "2027-01-06T18:00:00+00:00",
+      "venue_id": "venue-1"
+    },
+    {
+      "away_team_id": "team-3",
+      "end_ts": "2027-01-05T22:00:00+00:00",
+      "game_no": 5,
+      "home_team_id": "team-1",
+      "start_ts": "2027-01-05T18:00:00+00:00",
+      "venue_id": "venue-0"
+    },
+    {
+      "away_team_id": "team-3",
+      "end_ts": "2027-01-06T22:00:00+00:00",
+      "game_no": 6,
+      "home_team_id": "team-2",
+      "start_ts": "2027-01-06T18:00:00+00:00",
+      "venue_id": "venue-1"
+    }
+  ],
+  "slots": [
+    {
+      "end": "2027-01-05T22:00:00+00:00",
+      "idx": 0,
+      "start": "2027-01-05T18:00:00+00:00"
+    },
+    {
+      "end": "2027-01-06T22:00:00+00:00",
+      "idx": 1,
+      "start": "2027-01-06T18:00:00+00:00"
+    }
+  ],
+  "venues": [
+    "venue-0",
+    "venue-1"
+  ]
+}

@@ -12,3 +12,4 @@ orjson>=3.9,<4
 
 pytest>=7.4,<10
 pytest-asyncio
+hypothesis==6.115.5

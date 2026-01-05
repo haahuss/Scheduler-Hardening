@@ -49,7 +49,14 @@ def test_scheduler_regression_snapshot():
 
     # stable-ish snapshot payload
     snap_obj = {
-        "slots": [asdict(s) for s in slots],
+        "slots": [
+            {
+                **asdict(s),
+                "start": s.start.isoformat(),
+                "end": s.end.isoformat(),
+            }
+            for s in slots
+        ],
         "venues": venues,
         "games": games,
     }
