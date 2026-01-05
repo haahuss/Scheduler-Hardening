@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from hypothesis import given, settings, strategies as st
 
-from app.scheduler_core import Slot, _generate_best_effort_schedule
+from app.routes import Slot, _generate_best_effort_schedule
 
 
 def _make_matchups(team_ids: list[str]) -> list[tuple[str, str]]:
