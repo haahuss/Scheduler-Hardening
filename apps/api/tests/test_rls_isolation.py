@@ -8,8 +8,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.environ["DATABASE_URL"]
-
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    pytest.skip("DATABASE_URL not set; skipping RLS tests", allow_module_level=True)
 
 async def _set_user(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(
