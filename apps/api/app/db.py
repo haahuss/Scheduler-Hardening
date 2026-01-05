@@ -37,13 +37,17 @@ def _init_engine() -> None:
 def get_engine() -> AsyncEngine:
     _init_engine()
     if _engine is None:
-        raise RuntimeError("DATABASE_URL is not set (or invalid); cannot create DB engine.")
+        raise RuntimeError(
+            "DATABASE_URL is not set (or invalid); cannot create DB engine."
+        )
     return _engine
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     _init_engine()
     if _session_factory is None:
-        raise RuntimeError("DATABASE_URL is not set (or invalid); cannot create DB session.")
+        raise RuntimeError(
+            "DATABASE_URL is not set (or invalid); cannot create DB session."
+        )
     async with _session_factory() as session:
         yield session

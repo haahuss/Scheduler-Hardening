@@ -12,6 +12,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     pytest.skip("DATABASE_URL not set; skipping RLS tests", allow_module_level=True)
 
+
 async def _set_user(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(
         text("select set_config('app.user_id', :uid, true)"),
