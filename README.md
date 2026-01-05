@@ -11,6 +11,8 @@ Create a tournament (teams, venues, time windows) and generate a schedule. The s
 
 [Demo Video for the Scheduler Application](https://drive.google.com/file/d/1w3PAoJGjhQ1vQjQeJtUbdM8C06viz1en/view?usp=sharing)
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/4eaf056b-eb72-4f28-83f5-c85d3a3fa296" />
+
 ---
 
 ## 🛡️ Security Features 
