@@ -49,17 +49,11 @@ def test_scheduler_regression_snapshot():
 
     # stable-ish snapshot payload
     snap_obj = {
-        "slots": [
-            {
-                **asdict(s),
-                "start": s.start.isoformat(),
-                "end": s.end.isoformat(),
-            }
-            for s in slots
-        ],
+        "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
         "venues": venues,
         "games": games,
     }
+
 
     if SNAP.exists() and not (Path.cwd() / ".update_snapshots").exists():
         expected = json.loads(SNAP.read_text())
