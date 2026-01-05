@@ -9,6 +9,7 @@ Create a tournament (teams, venues, time windows) and generate a schedule. The s
 
 ## Project Demo
 
+[Demo Video for the Scheduler Application](https://drive.google.com/file/d/1w3PAoJGjhQ1vQjQeJtUbdM8C06viz1en/view?usp=sharing)
 
 ---
 
