@@ -66,6 +66,61 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
 
 ---
 
+## Manual tests with scripts/*
+
+Basic API health check and List Tournaments
+```
+$ ./api_health_basic.sh
+
+{
+  "status": "ok"
+}
+[
+  {
+    "id": "79bd35f1-e605-46d2-a924-52a5d0944e57",
+    "name": "A tourney",
+    "created_at": "2026-01-05T11:13:27.686454Z"
+  },
+  {
+    "id": "8042354a-3913-4cb1-8b54-5bab74817949",
+    "name": "A tourney",
+    "created_at": "2026-01-05T11:13:20.322085Z"
+  }
+]
+```
+
+Rate Limit Test (rate limit after 60 requests)
+```
+$ ./rate_limit_test.py
+
+✅ rate limit triggered at request 61
+Body: {"detail":"Rate limit exceeded. Try again later."}
+```
+
+Creating Tournament with too many teams. (24 Max allowed)
+```
+$ ./payload_size_hardening.py
+
+status: 400
+body: {"detail":"Max 24 teams allowed."}
+```
+
+RLS Isolation: User A can read A tournaments but User B cannot.
+```
+$ ./rls_isolation.sh
+
+[
+  {
+    "id": "8042354a-3913-4cb1-8b54-5bab74817949",
+    "name": "A tourney",
+    "created_at": "2026-01-05T11:13:20.322085Z"
+  }
+]
+```
+
+
+---
+
 ## Project structure (high level)
 | Directory |  Description |
 |--------|-----------|
