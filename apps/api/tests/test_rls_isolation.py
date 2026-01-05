@@ -12,6 +12,21 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     pytest.skip("DATABASE_URL not set; skipping RLS tests", allow_module_level=True)
 
+async def _assert_not_bypassrls(db):
+    row = (
+        await db.execute(
+            text("""
+                select r.rolsuper, r.rolbypassrls
+                from pg_roles r
+                where r.rolname = current_user
+            """)
+        )
+    ).one()
+    rolsuper, rolbypassrls = row
+    assert rolsuper is False and rolbypassrls is False, (
+        f"Tests must run as non-superuser non-bypassrls role. current_user={await db.scalar(text('select current_user'))}"
+    )
+
 
 async def _set_user(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(
@@ -32,6 +47,7 @@ async def test_rls_blocks_cross_org_reads():
     org_name_b = f"Org B {uuid.uuid4()}"
 
     async with Session() as db:
+        await _assert_not_bypassrls(db)
         # Defensive cleanup in case DB is dirty from previous runs
         await db.execute(
             text("delete from org_members where user_id in (:a, :b)"),

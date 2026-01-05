@@ -93,11 +93,13 @@ jobs:
       #     exit "${code:-0}"
 
       - name: Run tests (pytest)
+        working-directory: apps/api
         env:
-          DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@localhost:5432/scheduler
+          DATABASE_URL: postgresql+asyncpg://app_user:app_user@localhost:5432/scheduler
           PYTHONPATH: ${{ github.workspace }}/apps/api
         run: |
           python -m pytest -q
+
 
 
   web:
