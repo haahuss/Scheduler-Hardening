@@ -22,7 +22,9 @@ def _slots_from_time_windows(time_windows: list[dict]) -> list[Slot]:
     tw_sorted = sorted(time_windows, key=lambda w: w["start_ts"])
     slots: list[Slot] = []
     for i, tw in enumerate(tw_sorted):
-        slots.append(Slot(idx=i, start=_parse_dt(tw["start_ts"]), end=_parse_dt(tw["end_ts"])))
+        slots.append(
+            Slot(idx=i, start=_parse_dt(tw["start_ts"]), end=_parse_dt(tw["end_ts"]))
+        )
     return slots
 
 

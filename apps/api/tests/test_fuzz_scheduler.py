@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from hypothesis import given, settings, strategies as st
 
 from app.routes import Slot, _generate_best_effort_schedule
