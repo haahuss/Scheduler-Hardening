@@ -67,21 +67,36 @@ jobs:
         working-directory: .
         run: |
           until pg_isready -h localhost -U scheduler -d scheduler; do sleep 1; done
+
+          # 1) Base app schema (tables like tournaments/teams/venues/etc)
           PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f infra/supabase/schema.sql
 
-      # - name: Run tests (pytest)
-      #   run: |
-      #     python -m pip install pytest
-      #     pytest -q || code=$?
-      #     # pytest exit code 5 = "no tests collected" → treat as pass for now
-      #     if [ "${code:-0}" = "5" ]; then exit 0; fi
-      #     exit "${code:-0}"
-      - name: Run tests (pytest)
-        env:
-          DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@localhost:5432/scheduler
-          PYTHONPATH: ${{ github.workspace }}/apps/api
-        run: |
-          python -m pytest -q
+          # 2) Org + membership tables (orgs, org_members)
+          PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f infra/sql/00_orgs_schema.sql
+
+          # 3) App role used by API (app_user)
+          PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f infra/sql/02_app_role.sql
+
+          # 4) Enable RLS + policies
+          PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f infra/sql/01_enable_rls.sql
+
+          # Sanity check in logs:
+          PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -c "\dt"
+          PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -c "select 1 from org_members limit 1;"
+
+            # - name: Run tests (pytest)
+            #   run: |
+            #     python -m pip install pytest
+            #     pytest -q || code=$?
+            #     # pytest exit code 5 = "no tests collected" → treat as pass for now
+            #     if [ "${code:-0}" = "5" ]; then exit 0; fi
+            #     exit "${code:-0}"
+            - name: Run tests (pytest)
+              env:
+                DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@localhost:5432/scheduler
+                PYTHONPATH: ${{ github.workspace }}/apps/api
+              run: |
+                python -m pytest -q
 
 
   web:
