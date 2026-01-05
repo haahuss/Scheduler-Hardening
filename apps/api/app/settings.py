@@ -12,5 +12,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Scheduling safety caps (demo-safe defaults)
+    MAX_TEAMS: int = 24
+    MAX_VENUES: int = 12
+    MAX_TIME_WINDOWS: int = 24
+    MAX_MATCHUPS: int = 2000
+
 
 settings = Settings()

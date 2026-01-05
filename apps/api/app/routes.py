@@ -22,7 +22,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .deps import get_db_rls
 from .rls import require_user_id
+from .audit import audit_event
+from .settings import settings
 
+import asyncio
+
+_GEN_SEM = asyncio.Semaphore(1)
 
 router = APIRouter()
 
@@ -648,7 +653,10 @@ def _infeasible_explanation(
 
 
 @router.get("/tournaments", response_model=list[TournamentListItem])
-async def list_tournaments(db: AsyncSession = Depends(get_db_rls)):
+async def list_tournaments(
+    user_id: UUID = Depends(require_user_id),
+    db: AsyncSession = Depends(get_db_rls),
+):
     rows = (
         (
             await db.execute(
@@ -664,7 +672,11 @@ async def list_tournaments(db: AsyncSession = Depends(get_db_rls)):
 
 
 @router.get("/tournaments/{tournament_id}", response_model=TournamentOut)
-async def get_tournament(tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)):
+async def get_tournament(
+    tournament_id: UUID,
+    db: AsyncSession = Depends(get_db_rls),
+    user_id: UUID = Depends(require_user_id),
+):
     t = (
         await db.execute(select(Tournament).where(Tournament.id == tournament_id))
     ).scalar_one_or_none()
@@ -679,6 +691,30 @@ async def create_tournament(
     user_id: UUID = Depends(require_user_id),
     db: AsyncSession = Depends(get_db_rls),
 ):
+    if len(payload.teams) > settings.MAX_TEAMS:
+        raise HTTPException(
+            status_code=400, detail=f"Max {settings.MAX_TEAMS} teams allowed."
+        )
+
+    if len(payload.venues) > settings.MAX_VENUES:
+        raise HTTPException(
+            status_code=400, detail=f"Max {settings.MAX_VENUES} venues allowed."
+        )
+
+    if len(payload.time_windows) > settings.MAX_TIME_WINDOWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Max {settings.MAX_TIME_WINDOWS} time windows allowed.",
+        )
+
+    n = len(payload.teams)
+    matchups_est = (n * (n - 1)) // 2
+    if matchups_est > settings.MAX_MATCHUPS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many games to generate ({matchups_est}). Reduce teams.",
+        )
+
     # --- Step 3D: backend validation for time windows ---
     if not payload.time_windows or len(payload.time_windows) < 1:
         raise HTTPException(status_code=422, detail="Add at least 1 time window.")
@@ -751,8 +787,19 @@ async def create_tournament(
             )
         )
 
+    await audit_event(
+        db,
+        org_id=org_id,
+        user_id=user_id,
+        action="tournament.create",
+        entity_type="tournament",
+        entity_id=t.id,
+        meta={"teams": len(payload.teams), "venues": len(payload.venues)},
+    )
+
     await db.commit()
     await db.refresh(t)
+
     return TournamentOut(id=t.id, name=t.name, created_at=t.created_at)
 
 
@@ -762,184 +809,238 @@ def _norm(s: str) -> str:
 
 @router.post("/tournaments/{tournament_id}/generate", response_model=GenerateOut)
 async def generate_schedule(
-    tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)
+    tournament_id: UUID,
+    db: AsyncSession = Depends(get_db_rls),
+    user_id: UUID = Depends(require_user_id),
 ):
-    t = (
-        await db.execute(select(Tournament).where(Tournament.id == tournament_id))
-    ).scalar_one_or_none()
-    if not t:
-        raise HTTPException(status_code=404, detail="Tournament not found")
+    async with _GEN_SEM:
+        t = (
+            await db.execute(select(Tournament).where(Tournament.id == tournament_id))
+        ).scalar_one_or_none()
+        if not t:
+            raise HTTPException(status_code=404, detail="Tournament not found")
 
-    teams = (
-        (await db.execute(select(Team).where(Team.tournament_id == tournament_id)))
-        .scalars()
-        .all()
-    )
-    venues = (
-        (await db.execute(select(Venue).where(Venue.tournament_id == tournament_id)))
-        .scalars()
-        .all()
-    )
-    time_windows = (
-        (
-            await db.execute(
-                select(TimeWindow)
-                .where(TimeWindow.tournament_id == tournament_id)
-                .order_by(TimeWindow.start_ts)
+        teams = (
+            (await db.execute(select(Team).where(Team.tournament_id == tournament_id)))
+            .scalars()
+            .all()
+        )
+        venues = (
+            (
+                await db.execute(
+                    select(Venue).where(Venue.tournament_id == tournament_id)
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-
-    # Reject duplicate team names (case/whitespace-insensitive)
-    counts = Counter(teams)
-    dupes = sorted({name for name, c in counts.items() if c > 1})
-    if dupes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Duplicate team name(s) not allowed: {', '.join(dupes)}",
-        )
-
-    venue_names = [_norm(v.name) for v in venues if v.name and v.name.strip()]
-    counts = Counter(venue_names)
-    dupes = sorted({name for name, c in counts.items() if c > 1})
-    if dupes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Duplicate venue name(s) not allowed: {', '.join(dupes)}",
+        time_windows = (
+            (
+                await db.execute(
+                    select(TimeWindow)
+                    .where(TimeWindow.tournament_id == tournament_id)
+                    .order_by(TimeWindow.start_ts)
+                )
+            )
+            .scalars()
+            .all()
         )
 
-    if len(teams) < 2:
-        raise HTTPException(
-            status_code=400, detail="Need at least 2 teams to generate a schedule"
+        n = len(teams)
+        matchups_est = (n * (n - 1)) // 2
+        if matchups_est > settings.MAX_MATCHUPS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Too many games to generate ({matchups_est}). Reduce teams.",
+            )
+
+        # Reject duplicate team names (case/whitespace-insensitive)
+        team_names = [_norm(t.name) for t in teams if t.name and t.name.strip()]
+        counts = Counter(team_names)
+        dupes = sorted({name for name, c in counts.items() if c > 1})
+        if dupes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duplicate team name(s) not allowed: {', '.join(dupes)}",
+            )
+
+        venue_names = [_norm(v.name) for v in venues if v.name and v.name.strip()]
+        counts = Counter(venue_names)
+        dupes = sorted({name for name, c in counts.items() if c > 1})
+        if dupes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duplicate venue name(s) not allowed: {', '.join(dupes)}",
+            )
+
+        if len(teams) < 2:
+            raise HTTPException(
+                status_code=400, detail="Need at least 2 teams to generate a schedule"
+            )
+        if len(time_windows) < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Need at least 1 time window to generate a schedule",
+            )
+        if len(venues) < 1:
+            raise HTTPException(
+                status_code=400, detail="Need at least 1 venue to generate a schedule"
+            )
+
+        team_ids = sorted([str(x.id) for x in teams])
+        venue_ids = [str(v.id) for v in venues]
+        windows = [
+            {
+                "start_ts": tw.start_ts.isoformat(),
+                "end_ts": tw.end_ts.isoformat(),
+                "venue_id": str(tw.venue_id) if tw.venue_id else None,
+            }
+            for tw in time_windows
+        ]
+        input_obj = {"teams": team_ids, "venues": venue_ids, "time_windows": windows}
+        input_hash = _stable_hash(input_obj)
+
+        # Build matchups
+        matchups = []
+        for i in range(len(teams)):
+            for j in range(i + 1, len(teams)):
+                matchups.append((str(teams[i].id), str(teams[j].id)))
+        games_needed = len(matchups)
+
+        team_name_by_id = {str(x.id): x.name for x in teams}
+        venue_name_by_id = {str(v.id): v.name for v in venues}
+
+        slots = _build_slots(time_windows)
+        min_rest_minutes = 60
+
+        # Guidance (used when failing)
+        error_json = _build_guidance_error(
+            num_teams=len(team_ids),
+            num_venues=len(venue_ids),
+            time_windows=time_windows,
+            games_needed=games_needed,
+            min_rest_minutes=min_rest_minutes,
         )
-    if len(time_windows) < 1:
-        raise HTTPException(
-            status_code=400, detail="Need at least 1 time window to generate a schedule"
+
+        # 1) Try to solve PASS schedule
+        solved = _solve_schedule_backtracking(
+            matchups=matchups,
+            slots=slots,
+            venue_ids=venue_ids,
+            min_rest_minutes=min_rest_minutes,
         )
-    if len(venues) < 1:
-        raise HTTPException(
-            status_code=400, detail="Need at least 1 venue to generate a schedule"
-        )
 
-    team_ids = sorted([str(x.id) for x in teams])
-    venue_ids = [str(v.id) for v in venues]
-    windows = [
-        {
-            "start_ts": tw.start_ts.isoformat(),
-            "end_ts": tw.end_ts.isoformat(),
-            "venue_id": str(tw.venue_id) if tw.venue_id else None,
-        }
-        for tw in time_windows
-    ]
-    input_obj = {"teams": team_ids, "venues": venue_ids, "time_windows": windows}
-    input_hash = _stable_hash(input_obj)
+        if solved is not None:
+            integrity_solved = _compute_integrity(
+                solved, team_name_by_id, venue_name_by_id
+            )
+            fairness_solved = _compute_fairness(solved, team_name_by_id)
 
-    # Build matchups
-    matchups = []
-    for i in range(len(teams)):
-        for j in range(i + 1, len(teams)):
-            matchups.append((str(teams[i].id), str(teams[j].id)))
-    games_needed = len(matchups)
+            metrics_solved = {
+                "games_total": len(solved),
+                "teams_total": len(teams),
+                "venues_total": len(venues),
+                "time_windows_total": len(time_windows),
+                "integrity": integrity_solved,
+                "fairness": fairness_solved,
+            }
 
-    team_name_by_id = {str(x.id): x.name for x in teams}
-    venue_name_by_id = {str(v.id): v.name for v in venues}
+            if integrity_solved.get("status") == "PASS":
+                org_id = (
+                    await db.execute(
+                        text("select org_id from tournaments where id = :tid"),
+                        {"tid": tournament_id},
+                    )
+                ).scalar_one_or_none()
+                run = ScheduleRun(
+                    tournament_id=tournament_id,
+                    status="SUCCESS",
+                    org_id=org_id,
+                    input_hash=input_hash,
+                    schedule_json={"games": solved},
+                    metrics_json=metrics_solved,
+                    error_json=None,
+                )
+                db.add(run)
 
-    slots = _build_slots(time_windows)
-    min_rest_minutes = 60
+                await audit_event(
+                    db,
+                    org_id=org_id,
+                    user_id=user_id,
+                    action="tournament.generate",
+                    entity_type="tournament schedule (FAILED)",
+                    entity_id=tournament_id,
+                    meta={
+                        "tournament_id": str(tournament_id),
+                        "status": run.status,
+                        "input_hash": input_hash,
+                    },
+                )
 
-    # Guidance (used when failing)
-    error_json = _build_guidance_error(
-        num_teams=len(team_ids),
-        num_venues=len(venue_ids),
-        time_windows=time_windows,
-        games_needed=games_needed,
-        min_rest_minutes=min_rest_minutes,
-    )
+                await db.commit()
+                await db.refresh(run)
 
-    # 1) Try to solve PASS schedule
-    solved = _solve_schedule_backtracking(
-        matchups=matchups,
-        slots=slots,
-        venue_ids=venue_ids,
-        min_rest_minutes=min_rest_minutes,
-    )
+                return GenerateOut(run_id=run.id, status=run.status)
 
-    if solved is not None:
-        integrity_solved = _compute_integrity(solved, team_name_by_id, venue_name_by_id)
-        fairness_solved = _compute_fairness(solved, team_name_by_id)
+        # 2) Draft fallback (FAILED but still show schedule + reasons + guidance)
+        draft = _generate_best_effort_schedule(matchups, slots, venue_ids)
 
-        metrics_solved = {
-            "games_total": len(solved),
+        integrity = _compute_integrity(draft, team_name_by_id, venue_name_by_id)
+        fairness = _compute_fairness(draft, team_name_by_id)
+
+        metrics = {
+            "games_total": len(draft),
             "teams_total": len(teams),
             "venues_total": len(venues),
             "time_windows_total": len(time_windows),
-            "integrity": integrity_solved,
-            "fairness": fairness_solved,
+            "integrity": integrity,
+            "fairness": fairness,
         }
 
-        if integrity_solved.get("status") == "PASS":
-            org_id = (
-                await db.execute(
-                    text("select org_id from tournaments where id = :tid"),
-                    {"tid": tournament_id},
-                )
-            ).scalar_one_or_none()
-            run = ScheduleRun(
-                tournament_id=tournament_id,
-                status="SUCCESS",
-                org_id=org_id,
-                input_hash=input_hash,
-                schedule_json={"games": solved},
-                metrics_json=metrics_solved,
-                error_json=None,
+        org_id = (
+            await db.execute(
+                text("select org_id from tournaments where id = :tid"),
+                {"tid": tournament_id},
             )
-            db.add(run)
-            await db.commit()
-            await db.refresh(run)
-            return GenerateOut(run_id=run.id, status=run.status)
+        ).scalar_one()
 
-    # 2) Draft fallback (FAILED but still show schedule + reasons + guidance)
-    draft = _generate_best_effort_schedule(matchups, slots, venue_ids)
-
-    integrity = _compute_integrity(draft, team_name_by_id, venue_name_by_id)
-    fairness = _compute_fairness(draft, team_name_by_id)
-
-    metrics = {
-        "games_total": len(draft),
-        "teams_total": len(teams),
-        "venues_total": len(venues),
-        "time_windows_total": len(time_windows),
-        "integrity": integrity,
-        "fairness": fairness,
-    }
-
-    org_id = (
-        await db.execute(
-            text("select org_id from tournaments where id = :tid"),
-            {"tid": tournament_id},
+        run = ScheduleRun(
+            tournament_id=tournament_id,
+            org_id=org_id,
+            status="FAILED",
+            input_hash=input_hash,
+            schedule_json={"games": draft},
+            metrics_json=metrics,
+            error_json=error_json,
         )
-    ).scalar_one()
+        db.add(run)
 
-    run = ScheduleRun(
-        tournament_id=tournament_id,
-        org_id=org_id,
-        status="FAILED",
-        input_hash=input_hash,
-        schedule_json={"games": draft},
-        metrics_json=metrics,
-        error_json=error_json,
-    )
-    db.add(run)
-    await db.commit()
-    await db.refresh(run)
+        await audit_event(
+            db,
+            org_id=org_id,
+            user_id=user_id,
+            action="tournament.generate",
+            entity_type="tournament schedule (FAILED)",
+            entity_id=tournament_id,
+            meta={
+                "tournament_id": str(tournament_id),
+                "status": run.status,
+                "input_hash": input_hash,
+            },
+        )
+
+        await db.commit()
+        await db.refresh(run)
 
     return GenerateOut(run_id=run.id, status=run.status)
 
 
 @router.get("/tournaments/{tournament_id}/latest-run", response_model=ScheduleRunOut)
-async def latest_run(tournament_id: UUID, db: AsyncSession = Depends(get_db_rls)):
+async def latest_run(
+    tournament_id: UUID,
+    db: AsyncSession = Depends(get_db_rls),
+    user_id: UUID = Depends(require_user_id),
+):
     # Latest run by created_at
     result = await db.execute(
         select(ScheduleRun)

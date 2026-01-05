@@ -41,6 +41,7 @@ services:
           psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/00_orgs_schema.sql
           psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/01_enable_rls.sql
           psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/02_app_role.sql
+          psql -h postgres -U scheduler -d scheduler -v ON_ERROR_STOP=1 -f /schema_extra/03_audit_logs.sql
           echo "=== MIGRATE DONE ==="
 
 

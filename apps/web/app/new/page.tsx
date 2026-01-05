@@ -71,10 +71,20 @@ export default function NewTournamentPage() {
 
     if (!name.trim()) return setErrorMsg("Tournament name is required.");
     if (teams.length < 2) return setErrorMsg("Add at least 2 teams.");
+    if (teams.length > 24) return setErrorMsg("Max 24 teams allowed (demo safety limit).");
     if (venues.length < 1) return setErrorMsg("Add at least 1 venue.");
     if (timeWindows.length < 1) return setErrorMsg("Add at least 1 time window.");
 
     // validation goes RIGHT HERE
+    const normalized = (s: string) => s.trim().toLowerCase();
+    const teamNames = teams.map(t => normalized(t.name));
+    const dupTeams = teamNames.filter((n, i) => teamNames.indexOf(n) !== i);
+    if (dupTeams.length) return setErrorMsg(`Duplicate team names not allowed: ${[...new Set(dupTeams)].join(", ")}`);
+
+    const venueNames = venues.map(v => normalized(v.name));
+    const dupVenues = venueNames.filter((n, i) => venueNames.indexOf(n) !== i);
+    if (dupVenues.length) return setErrorMsg(`Duplicate venue names not allowed: ${[...new Set(dupVenues)].join(", ")}`);
+
     const now = new Date();
 
     for (const tw of timeWindows) {
