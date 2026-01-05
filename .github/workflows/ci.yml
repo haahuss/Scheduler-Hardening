@@ -52,6 +52,11 @@ jobs:
           if [ "${code:-0}" = "5" ]; then exit 0; fi
           exit "${code:-0}"
 
+      - name: API tests
+        working-directory: apps/api
+        run: python -m pytest -q
+
+
   web:
     name: Web — lint & tests
     runs-on: ubuntu-latest
