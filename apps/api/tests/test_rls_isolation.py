@@ -12,6 +12,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     pytest.skip("DATABASE_URL not set; skipping RLS tests", allow_module_level=True)
 
+
 async def _assert_not_bypassrls(db):
     row = (
         await db.execute(
