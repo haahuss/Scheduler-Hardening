@@ -84,19 +84,20 @@ jobs:
           PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -c "\dt"
           PGPASSWORD=scheduler psql -h localhost -U scheduler -d scheduler -c "select 1 from org_members limit 1;"
 
-            # - name: Run tests (pytest)
-            #   run: |
-            #     python -m pip install pytest
-            #     pytest -q || code=$?
-            #     # pytest exit code 5 = "no tests collected" → treat as pass for now
-            #     if [ "${code:-0}" = "5" ]; then exit 0; fi
-            #     exit "${code:-0}"
-            - name: Run tests (pytest)
-              env:
-                DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@localhost:5432/scheduler
-                PYTHONPATH: ${{ github.workspace }}/apps/api
-              run: |
-                python -m pytest -q
+      # - name: Run tests (pytest)
+      #   run: |
+      #     python -m pip install pytest
+      #     pytest -q || code=$?
+      #     # pytest exit code 5 = "no tests collected" → treat as pass for now
+      #     if [ "${code:-0}" = "5" ]; then exit 0; fi
+      #     exit "${code:-0}"
+
+      - name: Run tests (pytest)
+        env:
+          DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@localhost:5432/scheduler
+          PYTHONPATH: ${{ github.workspace }}/apps/api
+        run: |
+          python -m pytest -q
 
 
   web:
