@@ -968,7 +968,7 @@ async def generate_schedule(
                     org_id=org_id,
                     user_id=user_id,
                     action="tournament.generate",
-                    entity_type="tournament schedule (FAILED)",
+                    entity_type="tournament schedule (SUCCESS)",
                     entity_id=tournament_id,
                     meta={
                         "tournament_id": str(tournament_id),
