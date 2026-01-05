@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+
+# from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
@@ -49,11 +50,12 @@ def test_scheduler_regression_snapshot():
 
     # stable-ish snapshot payload
     snap_obj = {
-        "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
+        "slots": [
+            {"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots
+        ],
         "venues": venues,
         "games": games,
     }
-
 
     if SNAP.exists() and not (Path.cwd() / ".update_snapshots").exists():
         expected = json.loads(SNAP.read_text())
